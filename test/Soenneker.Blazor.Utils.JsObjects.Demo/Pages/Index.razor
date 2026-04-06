@@ -1,0 +1,361 @@
+@page "/"
+@using System.Collections.Generic
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using Soenneker.Blazor.Utils.JsObjects.Abstract
+
+@inject IJsObjectRegistry JsObjects
+
+<PageTitle>Soenneker.Blazor.Utils.JsObjects Demo</PageTitle>
+
+<div class="space-y-6">
+    <section class="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <div class="space-y-2">
+            <h2 class="text-xl font-semibold">Registry-backed JS objects</h2>
+            <p class="text-sm text-muted-foreground">
+                This demo imports a content module, calls an exported factory, and then reuses the same
+                <code>IJSObjectReference</code> for later calls. Switch exports to see that each
+                <code>(module + export)</code> pair gets its own cached instance.
+            </p>
+        </div>
+
+        <div class="mt-4 grid gap-4 md:grid-cols-4">
+            <div class="rounded-lg border border-border/70 p-4">
+                <div class="text-xs uppercase tracking-wide text-muted-foreground">Module path</div>
+                <div class="mt-2 break-all text-sm font-medium">@ModulePath</div>
+            </div>
+            <div class="rounded-lg border border-border/70 p-4">
+                <div class="text-xs uppercase tracking-wide text-muted-foreground">Selected export</div>
+                <div class="mt-2 text-sm font-medium">@_selectedExport</div>
+            </div>
+            <div class="rounded-lg border border-border/70 p-4">
+                <div class="text-xs uppercase tracking-wide text-muted-foreground">JS instance id</div>
+                <div class="mt-2 text-sm font-medium">@(_currentInstanceId?.ToString() ?? "Not loaded")</div>
+            </div>
+            <div class="rounded-lg border border-border/70 p-4">
+                <div class="text-xs uppercase tracking-wide text-muted-foreground">Repeated get()</div>
+                <div class="mt-2 text-sm font-medium">@RepeatGetLabel</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="grid gap-6 xl:grid-cols-[1.3fr,0.9fr]">
+        <div class="space-y-6">
+            <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="text-lg font-semibold">1. Pick an export</h3>
+                        <p class="text-sm text-muted-foreground">Each export returns a different stateful JS object from the same module.</p>
+                    </div>
+
+                    <div class="flex flex-wrap gap-3">
+                        <button type="button"
+                                class="@GetExportButtonClass(CounterExport)"
+                                @onclick="@(() => SelectExportAsync(CounterExport))">
+                            Counter object
+                        </button>
+                        <button type="button"
+                                class="@GetExportButtonClass(ProfileExport)"
+                                @onclick="@(() => SelectExportAsync(ProfileExport))">
+                            Profile object
+                        </button>
+                    </div>
+
+                    <div class="rounded-lg border border-dashed border-border/70 p-4">
+                        <div class="flex flex-wrap gap-3">
+                            <button type="button" class="@PrimaryButtonClass" @onclick="GetObjectAsync">Get cached object</button>
+                            <button type="button" class="@SecondaryButtonClass" @onclick="LoadSnapshotAsync">Read snapshot</button>
+                            <button type="button" class="@OutlineButtonClass" @onclick="RemoveSelectedObjectAsync">Remove selected object</button>
+                            <button type="button" class="@DangerButtonClass" @onclick="RemoveModuleAsync">Remove module + objects</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (IsCounterSelected)
+            {
+                <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-lg font-semibold">2. Use the counter object</h3>
+                            <p class="text-sm text-muted-foreground">Calls methods directly on the cached JS object reference.</p>
+                        </div>
+
+                        <label class="block space-y-2">
+                            <span class="text-sm font-medium">Increment step</span>
+                            <input class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                                   type="number"
+                                   min="1"
+                                   @bind="_counterStep" />
+                        </label>
+
+                        <div class="flex flex-wrap gap-3">
+                            <button type="button" class="@PrimaryButtonClass" @onclick="IncrementCounterAsync">Increment</button>
+                            <button type="button" class="@OutlineButtonClass" @onclick="ResetCounterAsync">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-lg font-semibold">2. Use the profile object</h3>
+                            <p class="text-sm text-muted-foreground">This export maintains its own state independently from the counter export.</p>
+                        </div>
+
+                        <label class="block space-y-2">
+                            <span class="text-sm font-medium">Display name</span>
+                            <input class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                                   @bind="_profileName" />
+                        </label>
+
+                        <label class="block space-y-2">
+                            <span class="text-sm font-medium">Tag</span>
+                            <input class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                                   @bind="_profileTag" />
+                        </label>
+
+                        <div class="flex flex-wrap gap-3">
+                            <button type="button" class="@PrimaryButtonClass" @onclick="SetProfileNameAsync">Set name</button>
+                            <button type="button" class="@SecondaryButtonClass" @onclick="AddProfileTagAsync">Add tag</button>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+                <div class="space-y-3">
+                    <h3 class="text-lg font-semibold">What this page is proving</h3>
+                    <ul class="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+                        <li><code>Get()</code> creates the object once, then returns the same handle for that export.</li>
+                        <li><code>InvokeAsync()</code> continues talking to the same JS state until you remove it.</li>
+                        <li><code>RemoveObject()</code> resets only the selected export.</li>
+                        <li><code>RemoveModuleAndObjects()</code> clears all exports for the module and disposes the imported module too.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+                <div class="space-y-3">
+                    <h3 class="text-lg font-semibold">Latest status</h3>
+                    <p class="rounded-lg bg-muted px-3 py-3 text-sm">@_status</p>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+                <div class="space-y-3">
+                    <h3 class="text-lg font-semibold">Snapshot</h3>
+                    <p class="text-sm text-muted-foreground">The JS object returns a serializable snapshot so you can inspect its state from Blazor.</p>
+                    <pre class="overflow-x-auto rounded-lg bg-slate-950 p-4 text-xs leading-6 text-slate-100">@_snapshotJson</pre>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+                <div class="space-y-3">
+                    <h3 class="text-lg font-semibold">Usage snippet</h3>
+                    <p class="text-sm text-muted-foreground">This is the exact flow the demo is using.</p>
+                    <pre class="overflow-x-auto rounded-lg bg-slate-950 p-4 text-xs leading-6 text-slate-100">@UsageSnippet</pre>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    private const string ModulePath = "/js/jsobjects-demo.js";
+    private const string CounterExport = "createCounter";
+    private const string ProfileExport = "createProfile";
+
+    private const string PrimaryButtonClass = "rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90";
+    private const string SecondaryButtonClass = "rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition hover:opacity-90";
+    private const string OutlineButtonClass = "rounded-lg border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted";
+    private const string DangerButtonClass = "rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground transition hover:opacity-90";
+
+    private readonly Dictionary<string, IJSObjectReference> _handles = [];
+    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+
+    private string _selectedExport = CounterExport;
+    private string _status = "Ready. Click 'Get cached object' to create the first JS instance.";
+    private string _snapshotJson = "{\n  \"message\": \"No snapshot yet\"\n}";
+    private int _counterStep = 1;
+    private string _profileName = "Ada Lovelace";
+    private string _profileTag = "cached";
+    private int? _currentInstanceId;
+    private bool? _sameHandleReturned;
+
+    private bool IsCounterSelected => _selectedExport == CounterExport;
+
+    private string RepeatGetLabel => _sameHandleReturned switch
+    {
+        true => "Reused same handle",
+        false => "New handle returned",
+        null => "Not checked yet"
+    };
+
+    private string UsageSnippet => string.Join(Environment.NewLine, [
+        "var jsObject = await JsObjects.Get(",
+        $"    \"{ModulePath}\",",
+        $"    \"{_selectedExport}\");",
+        "",
+        "var snapshot = await jsObject.InvokeAsync<DemoSnapshot>(\"getSnapshot\");",
+        "",
+        "await JsObjects.RemoveObject(",
+        $"    \"{ModulePath}\",",
+        $"    \"{_selectedExport}\");"
+    ]);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetObjectAsync();
+        await LoadSnapshotAsync();
+    }
+
+    private async Task SelectExportAsync(string exportName)
+    {
+        _selectedExport = exportName;
+        _status = $"Selected '{exportName}'. Click any action to use its cached JS object.";
+
+        if (_handles.TryGetValue(exportName, out IJSObjectReference? existing))
+        {
+            _sameHandleReturned = true;
+            await RefreshInstanceIdAsync(existing);
+            await LoadSnapshotAsync();
+        }
+        else
+        {
+            _currentInstanceId = null;
+            _sameHandleReturned = null;
+            _snapshotJson = "{\n  \"message\": \"No snapshot yet for this export\"\n}";
+        }
+    }
+
+    private async Task GetObjectAsync()
+    {
+        await EnsureSelectedObjectAsync();
+
+        _status = _sameHandleReturned == true
+            ? $"Reused JS object {_currentInstanceId} for '{_selectedExport}'."
+            : $"Created JS object {_currentInstanceId} for '{_selectedExport}'.";
+    }
+
+    private async Task<IJSObjectReference> EnsureSelectedObjectAsync()
+    {
+        IJSObjectReference jsObject = await JsObjects.Get(ModulePath, _selectedExport);
+
+        if (_handles.TryGetValue(_selectedExport, out IJSObjectReference? existing))
+        {
+            _sameHandleReturned = ReferenceEquals(existing, jsObject);
+            _handles[_selectedExport] = jsObject;
+        }
+        else
+        {
+            _handles[_selectedExport] = jsObject;
+            _sameHandleReturned = null;
+        }
+
+        await RefreshInstanceIdAsync(jsObject);
+        return jsObject;
+    }
+
+    private async Task RefreshInstanceIdAsync(IJSObjectReference jsObject)
+    {
+        _currentInstanceId = await jsObject.InvokeAsync<int>("getInstanceId");
+    }
+
+    private async Task LoadSnapshotAsync()
+    {
+        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+        DemoSnapshot? snapshot = await jsObject.InvokeAsync<DemoSnapshot>("getSnapshot");
+
+        _snapshotJson = JsonSerializer.Serialize(snapshot, _jsonOptions);
+        _status = $"Loaded snapshot for '{_selectedExport}' from JS object {_currentInstanceId}.";
+    }
+
+    private async Task IncrementCounterAsync()
+    {
+        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+        int nextValue = await jsObject.InvokeAsync<int>("increment", _counterStep);
+
+        _status = $"Counter {_currentInstanceId} incremented to {nextValue}.";
+        await LoadSnapshotAsync();
+    }
+
+    private async Task ResetCounterAsync()
+    {
+        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+        await jsObject.InvokeVoidAsync("reset");
+
+        _status = $"Counter {_currentInstanceId} reset.";
+        await LoadSnapshotAsync();
+    }
+
+    private async Task SetProfileNameAsync()
+    {
+        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+        string nextName = await jsObject.InvokeAsync<string>("setName", _profileName);
+
+        _status = $"Profile {_currentInstanceId} name set to '{nextName}'.";
+        await LoadSnapshotAsync();
+    }
+
+    private async Task AddProfileTagAsync()
+    {
+        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+        int tagCount = await jsObject.InvokeAsync<int>("addTag", _profileTag);
+
+        _status = $"Profile {_currentInstanceId} now has {tagCount} tag(s).";
+        await LoadSnapshotAsync();
+    }
+
+    private async Task RemoveSelectedObjectAsync()
+    {
+        bool removed = await JsObjects.RemoveObject(ModulePath, _selectedExport);
+
+        if (removed)
+        {
+            _handles.Remove(_selectedExport);
+            _currentInstanceId = null;
+            _sameHandleReturned = null;
+            _snapshotJson = "{\n  \"message\": \"Object removed. Fetch again to create a fresh instance.\"\n}";
+            _status = $"Removed cached object for '{_selectedExport}'.";
+            return;
+        }
+
+        _status = $"No cached object existed for '{_selectedExport}'.";
+    }
+
+    private async Task RemoveModuleAsync()
+    {
+        bool removedAny = await JsObjects.RemoveModuleAndObjects(ModulePath);
+
+        _handles.Clear();
+        _currentInstanceId = null;
+        _sameHandleReturned = null;
+        _snapshotJson = "{\n  \"message\": \"Module cleared. Any export will create a fresh object next time.\"\n}";
+        _status = removedAny
+            ? "Removed the module and every cached object created from it."
+            : "Disposed the module. No cached JS objects were present.";
+    }
+
+    private string GetExportButtonClass(string exportName)
+    {
+        bool selected = _selectedExport == exportName;
+
+        return selected
+            ? PrimaryButtonClass
+            : OutlineButtonClass;
+    }
+
+    private sealed class DemoSnapshot
+    {
+        public int InstanceId { get; set; }
+        public string Kind { get; set; } = "";
+        public string CreatedAt { get; set; } = "";
+        public string Headline { get; set; } = "";
+        public IReadOnlyList<string> Items { get; set; } = [];
+    }
+}
