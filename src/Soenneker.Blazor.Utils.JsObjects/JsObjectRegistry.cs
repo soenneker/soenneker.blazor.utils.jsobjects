@@ -127,7 +127,7 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
 
         try
         {
-            await _moduleImportUtil.DisposeContentModule(modulePath, cancellationToken);
+            await _moduleImportUtil.DisposeContentModule(modulePath);
         }
         catch
         {
