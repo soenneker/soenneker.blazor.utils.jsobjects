@@ -1,20 +1,19 @@
 using Soenneker.Blazor.Utils.JsObjects.Abstract;
-using Soenneker.Tests.FixturedUnit;
-using Xunit;
+using Soenneker.Tests.HostedUnit;
 
 namespace Soenneker.Blazor.Utils.JsObjects.Tests;
 
-[Collection("Collection")]
-public sealed class JsObjectRegistryTests : FixturedUnitTest
+[ClassDataSource<Host>(Shared = SharedType.PerTestSession)]
+public sealed class JsObjectRegistryTests : HostedUnitTest
 {
     private readonly IJsObjectRegistry _blazorlibrary;
 
-    public JsObjectRegistryTests(Fixture fixture, ITestOutputHelper output) : base(fixture, output)
+    public JsObjectRegistryTests(Host host) : base(host)
     {
         _blazorlibrary = Resolve<IJsObjectRegistry>(true);
     }
 
-    [Fact]
+    [Test]
     public void Default()
     {
 
