@@ -148,6 +148,10 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
                   .SequenceEqual(modulePath);
     }
 
+    /// <summary>
+    /// Asynchronously releases resources used by the current instance.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     public async ValueTask DisposeAsync()
     {
         if (!_disposed.TrySetTrue())

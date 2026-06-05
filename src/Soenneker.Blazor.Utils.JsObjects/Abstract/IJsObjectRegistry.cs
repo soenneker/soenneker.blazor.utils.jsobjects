@@ -19,8 +19,26 @@ public interface IJsObjectRegistry : IAsyncDisposable
     /// <returns>A cached <see cref="IJSObjectReference"/>.</returns>
     ValueTask<IJSObjectReference> Get(string modulePath, string exportName, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Removes object.
+    /// </summary>
+    /// <param name="modulePath">The module path.</param>
+    /// <param name="exportName">The export name.</param>
+    /// <returns>A task containing the result of the operation.</returns>
     ValueTask<bool> RemoveObject(string modulePath, string exportName);
 
+    /// <summary>
+    /// Removes objects for module.
+    /// </summary>
+    /// <param name="modulePath">The module path.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task containing the result of the operation.</returns>
     ValueTask<bool> RemoveObjectsForModule(string modulePath, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Removes module and objects.
+    /// </summary>
+    /// <param name="modulePath">The module path.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task containing the result of the operation.</returns>
     ValueTask<bool> RemoveModuleAndObjects(string modulePath, CancellationToken cancellationToken = default);
 }

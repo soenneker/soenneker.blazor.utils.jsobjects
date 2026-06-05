@@ -10,6 +10,11 @@ namespace Soenneker.Blazor.Utils.JsObjects.Registrars;
 /// </summary>
 public static class JsObjectRegistryRegistrar
 {
+    /// <summary>
+    /// Adds js object registry as scoped.
+    /// </summary>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The result of the operation.</returns>
     public static IServiceCollection AddJsObjectRegistryAsScoped(this IServiceCollection services)
     {
         services.AddModuleImportUtilAsScoped();
