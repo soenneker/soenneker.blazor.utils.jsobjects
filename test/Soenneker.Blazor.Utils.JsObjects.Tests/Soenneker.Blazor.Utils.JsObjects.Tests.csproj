@@ -17,10 +17,17 @@
     </ItemGroup>
 
     <ItemGroup>
+<<<<<<< HEAD
         <PackageReference Include="Soenneker.Utils.Test" Version="4.0.324" />
         <PackageReference Include="Soenneker.Tests.HostedUnit" Version="4.0.186" />
         <PackageReference Include="Soenneker.Blazor.MockJsRuntime" Version="4.0.343" />
         <PackageReference Include="TUnit" Version="1.65.0" />
+=======
+        <PackageReference Include="Soenneker.Utils.Test" Version="4.0.323" />
+        <PackageReference Include="Soenneker.Tests.HostedUnit" Version="4.0.185" />
+        <PackageReference Include="Soenneker.Blazor.MockJsRuntime" Version="4.0.343" />
+        <PackageReference Include="TUnit" Version="1.64.6" />
+>>>>>>> bf23067700df79661a261db9b4d0ea97efef72f7
     </ItemGroup>
 
     <ItemGroup>
