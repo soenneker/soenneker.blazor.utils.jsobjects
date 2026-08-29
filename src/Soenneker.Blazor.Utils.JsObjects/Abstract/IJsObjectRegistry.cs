@@ -22,23 +22,23 @@ public interface IJsObjectRegistry : IAsyncDisposable
     /// <summary>
     /// Removes object.
     /// </summary>
-    /// <param name="modulePath">The module path.</param>
-    /// <param name="exportName">The export name.</param>
-    /// <returns>A task containing the result of the operation.</returns>
+    /// <param name="modulePath">Path of the module to use.</param>
+    /// <param name="exportName">Name of the export to target.</param>
+    /// <returns>true if removes object; otherwise, false.</returns>
     ValueTask<bool> RemoveObject(string modulePath, string exportName);
 
     /// <summary>
     /// Removes objects for module.
     /// </summary>
-    /// <param name="modulePath">The module path.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task containing the result of the operation.</returns>
+    /// <param name="modulePath">Path of the module to use.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>true if removes objects for module; otherwise, false.</returns>
     ValueTask<bool> RemoveObjectsForModule(string modulePath, CancellationToken cancellationToken = default);
     /// <summary>
     /// Removes module and objects.
     /// </summary>
-    /// <param name="modulePath">The module path.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task containing the result of the operation.</returns>
+    /// <param name="modulePath">Path of the module to use.</param>
+    /// <param name="cancellationToken">Token used to cancel the operation.</param>
+    /// <returns>true if removes module and objects; otherwise, false.</returns>
     ValueTask<bool> RemoveModuleAndObjects(string modulePath, CancellationToken cancellationToken = default);
 }
