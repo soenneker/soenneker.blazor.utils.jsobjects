@@ -6,6 +6,8 @@ using Soenneker.Dictionaries.Singletons;
 using Soenneker.Extensions.ValueTask;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,11 +20,12 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
     private readonly IModuleImportUtil _moduleImportUtil;
 
     private readonly SingletonDictionary<IJSObjectReference> _objects;
+    private readonly SemaphoreSlim _gate = new(1, 1);
     private ValueAtomicBool _disposed;
 
     public JsObjectRegistry(IModuleImportUtil moduleImportUtil)
     {
-        _moduleImportUtil = moduleImportUtil;
+        _moduleImportUtil = moduleImportUtil ?? throw new ArgumentNullException(nameof(moduleImportUtil));
 
         _objects = new SingletonDictionary<IJSObjectReference>(async (key, cancellationToken) =>
         {
@@ -36,39 +39,48 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
         });
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ValueTask<IJSObjectReference> Get(string modulePath, string exportName, CancellationToken cancellationToken = default)
+    public async ValueTask<IJSObjectReference> Get(string modulePath, string exportName, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed.Value, this);
 
         ArgumentException.ThrowIfNullOrWhiteSpace(modulePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(exportName);
 
-        string key = CreateKey(modulePath, exportName);
-        return _objects.Get(key, cancellationToken);
+        await _gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed.Value, this);
+            string key = CreateKey(modulePath, exportName);
+            return await _objects.Get(key, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static string CreateKey(string modulePath, string exportName)
     {
-        return string.Create(modulePath.Length + exportName.Length + 1, (modulePath, exportName), static (span, state) =>
-        {
-            state.modulePath.AsSpan()
-                 .CopyTo(span);
-            span[state.modulePath.Length] = '|';
-
-            state.exportName.AsSpan()
-                 .CopyTo(span[(state.modulePath.Length + 1)..]);
-        });
+        return string.Concat(modulePath.Length.ToString(CultureInfo.InvariantCulture), ":", modulePath, exportName);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static (string modulePath, string exportName) ParseKey(string key)
     {
-        int separatorIndex = key.IndexOf('|');
+        int separatorIndex = key.IndexOf(':');
 
-        string modulePath = key[..separatorIndex];
-        string exportName = key[(separatorIndex + 1)..];
+        if (separatorIndex <= 0 || !int.TryParse(key.AsSpan(0, separatorIndex), NumberStyles.None, CultureInfo.InvariantCulture, out int moduleLength))
+            throw new InvalidOperationException("The JavaScript object cache contains an invalid key.");
+
+        int moduleStart = separatorIndex + 1;
+
+        if (moduleLength < 0 || moduleStart + moduleLength > key.Length)
+            throw new InvalidOperationException("The JavaScript object cache contains an invalid key.");
+
+        string modulePath = key.Substring(moduleStart, moduleLength);
+        string exportName = key[(moduleStart + moduleLength)..];
 
         return (modulePath, exportName);
     }
@@ -80,9 +92,23 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
         ArgumentException.ThrowIfNullOrWhiteSpace(modulePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(exportName);
 
-        string key = CreateKey(modulePath, exportName);
+        await _gate.WaitAsync();
 
-        return await _objects.TryRemoveAndDispose(key);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed.Value, this);
+            string key = CreateKey(modulePath, exportName);
+
+            if (!_objects.TryRemove(key, out IJSObjectReference? jsObject) || jsObject is null)
+                return false;
+
+            await DisposeReference(jsObject);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async ValueTask<bool> RemoveObjectsForModule(string modulePath, CancellationToken cancellationToken = default)
@@ -91,8 +117,23 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
 
         ArgumentException.ThrowIfNullOrWhiteSpace(modulePath);
 
-        var anyRemoved = false;
+        await _gate.WaitAsync(cancellationToken);
 
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed.Value, this);
+            return await RemoveObjectsForModuleCore(modulePath, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async ValueTask<bool> RemoveObjectsForModuleCore(string modulePath, CancellationToken cancellationToken)
+    {
+        var anyRemoved = false;
+        List<Exception>? exceptions = null;
         Dictionary<string, IJSObjectReference> all = await _objects.GetAll(cancellationToken);
 
         foreach (KeyValuePair<string, IJSObjectReference> pair in all)
@@ -107,12 +148,17 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
 
             try
             {
-                await jsObject.DisposeAsync();
+                await DisposeReference(jsObject);
             }
-            catch
+            catch (Exception exception)
             {
+                exceptions ??= [];
+                exceptions.Add(exception);
             }
         }
+
+        if (exceptions is not null)
+            throw new AggregateException("One or more JavaScript objects could not be disposed.", exceptions);
 
         return anyRemoved;
     }
@@ -123,29 +169,64 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
 
         ArgumentException.ThrowIfNullOrWhiteSpace(modulePath);
 
-        bool objectsRemoved = await RemoveObjectsForModule(modulePath, cancellationToken);
+        await _gate.WaitAsync(cancellationToken);
 
         try
         {
-            await _moduleImportUtil.DisposeContentModule(modulePath);
-        }
-        catch
-        {
-        }
+            ObjectDisposedException.ThrowIf(_disposed.Value, this);
+            var objectsRemoved = false;
+            Exception? objectRemovalException = null;
 
-        return objectsRemoved;
+            try
+            {
+                objectsRemoved = await RemoveObjectsForModuleCore(modulePath, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                objectRemovalException = exception;
+            }
+
+            bool moduleRemoved;
+
+            try
+            {
+                moduleRemoved = await _moduleImportUtil.DisposeContentModule(modulePath);
+            }
+            catch (Exception moduleException) when (objectRemovalException is not null)
+            {
+                throw new AggregateException("JavaScript objects and their module could not be fully disposed.", objectRemovalException, moduleException);
+            }
+
+            if (objectRemovalException is not null)
+                ExceptionDispatchInfo.Capture(objectRemovalException).Throw();
+
+            return objectsRemoved || moduleRemoved;
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool KeyMatchesModule(string key, string modulePath)
     {
-        int separatorIndex = key.IndexOf('|');
+        (string cachedModulePath, _) = ParseKey(key);
+        return cachedModulePath.Equals(modulePath, StringComparison.Ordinal);
+    }
 
-        if (separatorIndex < 0)
-            return key.Equals(modulePath, StringComparison.Ordinal);
-
-        return key.AsSpan(0, separatorIndex)
-                  .SequenceEqual(modulePath);
+    private static async ValueTask DisposeReference(IJSObjectReference jsObject)
+    {
+        try
+        {
+            await jsObject.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     /// <summary>
@@ -157,6 +238,15 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
         if (!_disposed.TrySetTrue())
             return;
 
-        await _objects.DisposeAsync();
+        await _gate.WaitAsync();
+
+        try
+        {
+            await _objects.DisposeAsync();
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 }

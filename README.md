@@ -4,11 +4,11 @@
 [![](https://img.shields.io/badge/Demo-Live-blueviolet?style=for-the-badge\&logo=github)](https://soenneker.github.io/soenneker.blazor.utils.jsobjects)
 [![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.blazor.utils.jsobjects/codeql.yml?style=for-the-badge)](https://github.com/soenneker/soenneker.blazor.utils.jsobjects/actions/workflows/codeql.yml)
 
-# ![](https://user-images.githubusercontent.com/4441470/224455560-91ed3ee7-f510-4041-a8d2-3fc093025112.png) Soenneker.Blazor.Utils.JsObjects
+# Soenneker.Blazor.Utils.JsObjects
 
-### Centralized registry for loading, caching, and reusing JavaScript object instances via Blazor interop
+A scoped registry for creating, caching, and disposing stateful JavaScript object references returned by ES module exports.
 
----
+Use it when an exported factory creates a JavaScript object whose state should be reused across multiple Blazor interop calls. Stateless module functions do not need this registry.
 
 ## Installation
 
@@ -16,198 +16,100 @@
 dotnet add package Soenneker.Blazor.Utils.JsObjects
 ```
 
----
+```csharp
+using Soenneker.Blazor.Utils.JsObjects.Registrars;
 
-## What this solves
-
-Blazor interop typically leads to:
-
-* Re-importing modules repeatedly
-* Creating duplicate JS instances
-* Manual lifecycle/disposal headaches
-* Scattered `IJSRuntime` usage everywhere
-
-This library gives you a **central registry** that:
-
-* Caches JS object instances per `(module + export)`
-* Ensures **single instance per key**
-* Handles async creation safely
-* Allows targeted eviction + cleanup
-* Keeps your components clean
-
----
-
-## How it works
-
-Internally, objects are keyed like:
-
-```
-[modulePath]|[exportName]
+builder.Services.AddJsObjectRegistryAsScoped();
 ```
 
-And resolved like this:
+Inject `IJsObjectRegistry` into the component or service that wraps the JavaScript API.
 
-1. Import module (via `IModuleImportUtil`)
-2. Call exported function
-3. Cache returned `IJSObjectReference`
+## JavaScript factory
 
-Example from implementation: 
+The export must take no arguments and return an object. The object’s functions become methods on the resulting `IJSObjectReference`:
 
----
+```javascript
+export function createCounter() {
+    let value = 0;
 
-## JavaScript pattern (IMPORTANT)
-
-Your module should return an object instance:
-
-```js
-// myModule.js
-
-export function createInstance() {
     return {
-        sayHello() {
-            console.log("Hello from JS");
+        increment(step = 1) {
+            value += step;
+            return value;
+        },
+        reset() {
+            value = 0;
         }
     };
 }
 ```
 
----
+Place the module in the application’s static web assets, for example `wwwroot/js/counter.js`.
 
-## Basic usage
-
-### Inject
+## Wrap the object in a typed service
 
 ```csharp
-public sealed class MyService
-{
-    private readonly IJsObjectRegistry _registry;
+using Microsoft.JSInterop;
+using Soenneker.Blazor.Utils.JsObjects.Abstract;
 
-    public MyService(IJsObjectRegistry registry)
+public sealed class CounterClient(IJsObjectRegistry objects)
+{
+    private const string ModulePath = "/js/counter.js";
+    private const string Factory = "createCounter";
+
+    public async ValueTask<int> Increment(
+        int step,
+        CancellationToken cancellationToken = default)
     {
-        _registry = registry;
+        IJSObjectReference counter =
+            await objects.Get(ModulePath, Factory, cancellationToken);
+
+        return await counter.InvokeAsync<int>(
+            "increment",
+            cancellationToken,
+            step);
     }
 }
 ```
 
----
+Call browser interop after interactive rendering. The same registry scope returns the same object reference for repeated calls with the same exact module path and export name. Different spellings, relative paths, query strings, or export names form different cache entries.
 
-### Get (or create) a JS object
+The registry owns returned references. Do not dispose them directly; remove them through the registry so its cache cannot return a disposed handle.
 
-```csharp
-IJSObjectReference obj = await _registry.Get(
-    "js/myModule.js",
-    "createInstance",
-    cancellationToken
-);
-```
+## Reset cached state
 
-This will:
-
-* Import module (once)
-* Call `createInstance`
-* Cache result
-* Return same instance on future calls
-
----
-
-### Call methods on the object
+Remove one factory result when that object’s JavaScript state is no longer valid:
 
 ```csharp
-await obj.InvokeVoidAsync("sayHello");
+bool removed = await objects.RemoveObject(
+    "/js/counter.js",
+    "createCounter");
 ```
 
----
+The next `Get` for that pair calls the factory again.
 
-## Example: Real-world wrapper
-
-This is how you *should* use it — wrap JS in a typed service.
+Remove every cached object created from a module while leaving the imported module available:
 
 ```csharp
-public sealed class MyJsClient
-{
-    private const string Module = "js/myModule.js";
-    private const string Export = "createInstance";
-
-    private readonly IJsObjectRegistry _registry;
-
-    public MyJsClient(IJsObjectRegistry registry)
-    {
-        _registry = registry;
-    }
-
-    public async ValueTask SayHello(CancellationToken ct = default)
-    {
-        var obj = await _registry.Get(Module, Export, ct);
-        await obj.InvokeVoidAsync("sayHello", ct);
-    }
-}
+await objects.RemoveObjectsForModule("/js/counter.js", cancellationToken);
 ```
 
-Now your Blazor components never touch JS directly.
-
----
-
-## Removing objects
-
-### Remove a single instance
+Or remove the objects and evict the imported module:
 
 ```csharp
-await _registry.RemoveObject("js/myModule.js", "createInstance");
+bool anythingRemoved = await objects.RemoveModuleAndObjects(
+    "/js/counter.js",
+    cancellationToken);
 ```
 
----
+The last method returns true when at least one object or the module cache entry was removed. Use module-wide removal only when this registry is the exclusive owner of that module cache entry; disposing a shared imported module can invalidate other consumers.
 
-### Remove all objects for a module
+Creation and removal operations are serialized within the registry so a module eviction cannot race a new cached object creation. Do not invoke a previously returned reference after removing it.
 
-```csharp
-await _registry.RemoveObjectsForModule("js/myModule.js");
-```
+## Lifetime and failures
 
----
+In Blazor Server, scoped state normally lasts for the circuit. In WebAssembly, a scoped service normally lasts for the application. Remove short-lived objects when their owning widget is destroyed; remaining cached references are disposed with the registry scope.
 
-### Remove module + all objects
+A cancellation token cancels waiting for creation or removal, but it cannot undo JavaScript work that already completed. Factory import errors, missing exports, non-object return values, and JavaScript exceptions propagate to the caller.
 
-```csharp
-await _registry.RemoveModuleAndObjects("js/myModule.js");
-```
-
-This:
-
-* Disposes all instances
-* Disposes imported module
-
----
-
-## Lifecycle guidance
-
-Use removal when:
-
-* Underlying JS state becomes invalid
-* Module is reloaded
-* You want to force a fresh instance
-
-Otherwise, **leave it cached**.
-
----
-
-## Design notes
-
-* Thread-safe via `SingletonDictionary`
-* Zero duplicate instance creation
-* Optimized key creation (`string.Create`)
-* Minimal allocations
-* Explicit disposal control
-
----
-
-## When NOT to use this
-
-Don’t use this for:
-
-* Stateless JS calls
-* One-off interop
-* Simple `InvokeAsync` usage
-
-This is for **stateful JS objects** only.
-
----
+Keep module paths and export names as trusted application constants. Dynamic module import executes code in the page, so never derive either value directly from user input. Returned values and callbacks that originate in JavaScript remain untrusted data and require normal validation.

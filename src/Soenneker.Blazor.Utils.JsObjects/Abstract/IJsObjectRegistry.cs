@@ -11,34 +11,34 @@ namespace Soenneker.Blazor.Utils.JsObjects.Abstract;
 public interface IJsObjectRegistry : IAsyncDisposable
 {
     /// <summary>
-    /// Gets a cached JavaScript object reference from the specified module using the provided exported getter name.
+    /// Gets or creates the JavaScript object reference returned by a parameterless module export.
     /// </summary>
     /// <param name="modulePath">The content module path.</param>
     /// <param name="exportName">The exported JavaScript function name that returns the object instance.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>A cached <see cref="IJSObjectReference"/>.</returns>
+    /// <returns>The reference cached for the exact module path and export name.</returns>
     ValueTask<IJSObjectReference> Get(string modulePath, string exportName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Removes object.
+    /// Removes and disposes one cached JavaScript object.
     /// </summary>
     /// <param name="modulePath">Path of the module to use.</param>
     /// <param name="exportName">Name of the export to target.</param>
-    /// <returns>true if removes object; otherwise, false.</returns>
+    /// <returns><see langword="true"/> when a cached object was removed; otherwise, <see langword="false"/>.</returns>
     ValueTask<bool> RemoveObject(string modulePath, string exportName);
 
     /// <summary>
-    /// Removes objects for module.
+    /// Removes and disposes every cached JavaScript object created from a module.
     /// </summary>
     /// <param name="modulePath">Path of the module to use.</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
-    /// <returns>true if removes objects for module; otherwise, false.</returns>
+    /// <returns><see langword="true"/> when at least one cached object was removed; otherwise, <see langword="false"/>.</returns>
     ValueTask<bool> RemoveObjectsForModule(string modulePath, CancellationToken cancellationToken = default);
     /// <summary>
-    /// Removes module and objects.
+    /// Removes and disposes every cached JavaScript object created from a module, then evicts the imported module.
     /// </summary>
     /// <param name="modulePath">Path of the module to use.</param>
     /// <param name="cancellationToken">Token used to cancel the operation.</param>
-    /// <returns>true if removes module and objects; otherwise, false.</returns>
+    /// <returns><see langword="true"/> when at least one object or the module cache entry was removed; otherwise, <see langword="false"/>.</returns>
     ValueTask<bool> RemoveModuleAndObjects(string modulePath, CancellationToken cancellationToken = default);
 }
