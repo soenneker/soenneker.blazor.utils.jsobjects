@@ -69,6 +69,8 @@
 --border-radius:
 --cell-radius
 --cell-size
+--console-height-medium:
+--console-height-small:
 --front-toast-height:
 --gap:
 --gap:{Spacing}
@@ -185,6 +187,7 @@ Column_{columnIndex}
 Compose
 Connection
 Connections
+Console
 ContentAttributes
 Control+C
 Control+D
@@ -207,7 +210,9 @@ Dezember
 DirectionProvider
 DirectionProviderDir
 Disabled
+Download
 Drag
+Drop
 Duplicate
 Duplication
 Edge
@@ -264,6 +269,7 @@ HandleEdgeLabelEditorBlur
 HandleEdgeLabelEditorKeyDown
 HandleElementCaptured
 HandleElementReferenceCaptured
+HandleFilesDropped
 HandleFilesSelected
 HandleFocus
 HandleFocusIn
@@ -416,6 +422,7 @@ OnSearchInputHandler
 OnSelectedPageSizeChanged
 OnYearChanged
 One
+Only
 OpenAI
 OpenFileDialog
 OpenPreferences
@@ -480,6 +487,7 @@ Remove
 Required
 Reset
 ResetView
+ResolveText
 Rows
 Saturation
 Save
@@ -628,8 +636,6 @@ ZoomOut
 [.border-b]:pb-2
 [.border-b]:pb-4
 [.border-t]:pt-2
-[[data-side=left][data-collapsible=offcanvas]_&]:-right-2
-[[data-side=right][data-collapsible=offcanvas]_&]:-left-2
 [[data-variant=legend]+&]:-mt-1.5
 [a]:hover:bg-destructive/20
 [a]:hover:bg-muted
@@ -790,9 +796,12 @@ aria-invalid:ring-destructive/20
 aria-keyshortcuts
 aria-label
 aria-labelledby
+aria-level
+aria-live
 aria-modal
 aria-multiselectable
 aria-orientation
+aria-posinset
 aria-pressed
 aria-pressed:bg-muted
 aria-pressed:bg-primary
@@ -803,6 +812,8 @@ aria-readonly:cursor-not-allowed
 aria-readonly:opacity-50
 aria-selected
 aria-selected:text-muted-foreground
+aria-setsize
+aria-sort
 aria-valuemax
 aria-valuemin
 aria-valuenow
@@ -810,11 +821,13 @@ aria-valuetext
 article
 as
 asc
+ascending
 aside
 aspect-auto
 aspect-ratio
 aspect-square
 assistant
+at
 attachment
 attachment-description
 attachment-info
@@ -867,6 +880,7 @@ best
 between
 bg-
 bg-[Canvas]
+bg-[color-mix(in_oklch,var(--surface),transparent_8%)]
 bg-[length:20px_20px]
 bg-[radial-gradient(circle_at_center,hsl(var(--border))_1px,transparent_1px)]
 bg-accent
@@ -898,6 +912,7 @@ bg-muted
 bg-muted-foreground
 bg-muted/20
 bg-muted/25
+bg-muted/30
 bg-muted/40
 bg-muted/50
 bg-muted/55
@@ -940,7 +955,9 @@ border-l-2
 border-muted
 border-muted-foreground/70
 border-none
+border-primary
 border-primary/20
+border-primary/80
 border-r
 border-ring
 border-sidebar-border
@@ -1017,6 +1034,7 @@ chain-of-thought-step-title
 chain-of-thought-trigger
 change
 changed
+changes
 checkbox
 checkbox-group
 checkbox-indicator
@@ -1057,6 +1075,7 @@ cn-toast
 code
 code-chip
 code-editor
+code-editor-file-input
 col
 col-span-12
 col-start-2
@@ -1122,6 +1141,8 @@ connection
 consent
 consent-manager
 consentInfo
+console
+console-actions
 contain
 container
 content
@@ -1649,6 +1670,7 @@ deg
 delegate
 demo-section-preview-inner
 desc
+descending
 description
 destructive
 destructive/10
@@ -1808,6 +1830,7 @@ file:h-6
 file:inline-flex
 file:text-foreground
 file:text-sm
+files
 fill-background
 fill-foreground
 fill-muted
@@ -1966,8 +1989,6 @@ group-data-[collapsible=icon]:size-8!
 group-data-[collapsible=icon]:w-(--sidebar-width-icon)
 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]
 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]
-group-data-[collapsible=offcanvas]:after:left-full
-group-data-[collapsible=offcanvas]:translate-x-0
 group-data-[collapsible=offcanvas]:w-0
 group-data-[disabled=true]/field:opacity-50
 group-data-[disabled=true]/input-group:opacity-50
@@ -2032,11 +2053,13 @@ group-data-[shell=navigation]:pb-6
 group-data-[shell=navigation]:px-4
 group-data-[shell=navigation]:w-full
 group-data-[side=left]:-right-4
+group-data-[side=left]:after:left-0
 group-data-[side=left]:border-r
 group-data-[side=left]:right-(--sidebar-rail-trigger-offset)
+group-data-[side=right]:-left-4
+group-data-[side=right]:after:right-0
 group-data-[side=right]:border-l
 group-data-[side=right]:left-(--sidebar-rail-trigger-offset)
-group-data-[side=right]:left-0
 group-data-[side=right]:rotate-180
 group-data-[size=default]/avatar:[&>svg]:size-2
 group-data-[size=default]/avatar:size-2.5
@@ -2215,6 +2238,7 @@ h-9
 h-[30px]
 h-[calc(--spacing(5.25))]
 h-[calc(100%-1px)]
+h-[var(--console-height-small)]
 h-auto
 h-full
 h-px
@@ -2402,6 +2426,7 @@ inactive
 includes
 index
 index:
+inert
 infinite
 info
 initial
@@ -2422,6 +2447,7 @@ input-otp-group
 input-otp-separator
 input-otp-slot
 inputmode
+insert
 inset
 inset-0
 inset-x-0
@@ -2501,7 +2527,9 @@ leading-6.5
 leading-7
 leading-none
 leading-normal
+leading-relaxed
 leading-snug
+least
 left
 left-0
 left-1.5
@@ -2539,11 +2567,11 @@ listbox
 listitem
 load
 loading
+log
 long
 longdesc
 loop
 ltr
-ltr:-translate-x-1/2
 lucide
 lucide-loader
 lucide-loader-circle
@@ -2584,6 +2612,7 @@ max-h-[85vh]
 max-h-[90vh]
 max-h-[calc(100vh-var(--header-height)-2rem)]
 max-h-[min(calc(--spacing(72)---spacing(9)),calc(var(--available-height)---spacing(9)))]
+max-h-[var(--console-height-small)]
 max-h-full
 max-height:
 max-sm:bottom-24
@@ -2629,10 +2658,13 @@ md:flex-row
 md:gap-0.5
 md:grid-cols-[14rem_auto]
 md:h-0.5
+md:h-[var(--console-height-medium)]
 md:items-center
 md:justify-end
 md:m-2
+md:max-h-[var(--console-height-medium)]
 md:max-w-[80%]
+md:min-h-[var(--console-height-medium)]
 md:not-last:flex-1
 md:opacity-0
 md:pb-0
@@ -2704,6 +2736,7 @@ min-h-9
 min-h-96
 min-h-[104px]
 min-h-[9.375rem]
+min-h-[var(--console-height-small)]
 min-height:
 min-w-(--cell-size)
 min-w-0
@@ -2813,8 +2846,11 @@ node-editor-node
 node-editor-node-layer
 node-editor-palette-item
 node-editor-port
+node-editor-selection-rectangle
 node-editor-viewport
 nodeId
+nodeIds
+nodes
 non-empty
 non-null
 non-scaling-stroke
@@ -2854,6 +2890,7 @@ onblur
 oncanplay
 onchange
 onclick
+one
 one-time-code
 onended
 onerror
@@ -2916,6 +2953,7 @@ outline
 outline-0
 outline-hidden
 outline-none
+output
 outubro
 overflow-auto
 overflow-hidden
@@ -3299,7 +3337,6 @@ row-start-1
 rowheader
 rows
 rtl
-rtl:-translate-x-1/2
 rtl:after:translate-x-1/2
 rtl:aria-[orientation=horizontal]:after:-translate-x-0
 sandbox
@@ -3310,6 +3347,7 @@ scale-0
 scale-100
 scale-105
 scale-75
+scope
 score
 score-center
 score-circle
@@ -3362,6 +3400,7 @@ setembro
 settembre
 shadow
 shadow-2xl
+shadow-[0_0_0_1px_hsl(var(--primary)/0.08)]
 shadow-[0_0_0_1px_hsl(var(--sidebar-border))]
 shadow-[0_0_0_1px_rgb(0_0_0_/_0.35)]
 shadow-inner
@@ -3418,6 +3457,7 @@ signature-pad
 simple-icon
 single
 site
+size
 size-
 size-(--cell-size)
 size-10
