@@ -1,5 +1,6 @@
 using Microsoft.JSInterop;
 using Soenneker.Atomics.ValueBools;
+using Soenneker.Asyncs.Locks;
 using Soenneker.Blazor.Utils.JsObjects.Abstract;
 using Soenneker.Blazor.Utils.ModuleImport.Abstract;
 using Soenneker.Dictionaries.Singletons;
@@ -20,7 +21,7 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
     private readonly IModuleImportUtil _moduleImportUtil;
 
     private readonly SingletonDictionary<IJSObjectReference> _objects;
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly AsyncLock _gate = new();
     private ValueAtomicBool _disposed;
 
     public JsObjectRegistry(IModuleImportUtil moduleImportUtil)
@@ -46,17 +47,11 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
         ArgumentException.ThrowIfNullOrWhiteSpace(modulePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(exportName);
 
-        await _gate.WaitAsync(cancellationToken);
-
-        try
+        using (await _gate.Lock(cancellationToken))
         {
             ObjectDisposedException.ThrowIf(_disposed.Value, this);
             string key = CreateKey(modulePath, exportName);
             return await _objects.Get(key, cancellationToken);
-        }
-        finally
-        {
-            _gate.Release();
         }
     }
 
@@ -92,9 +87,7 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
         ArgumentException.ThrowIfNullOrWhiteSpace(modulePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(exportName);
 
-        await _gate.WaitAsync();
-
-        try
+        using (await _gate.Lock())
         {
             ObjectDisposedException.ThrowIf(_disposed.Value, this);
             string key = CreateKey(modulePath, exportName);
@@ -105,10 +98,6 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
             await DisposeReference(jsObject);
             return true;
         }
-        finally
-        {
-            _gate.Release();
-        }
     }
 
     public async ValueTask<bool> RemoveObjectsForModule(string modulePath, CancellationToken cancellationToken = default)
@@ -117,16 +106,10 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
 
         ArgumentException.ThrowIfNullOrWhiteSpace(modulePath);
 
-        await _gate.WaitAsync(cancellationToken);
-
-        try
+        using (await _gate.Lock(cancellationToken))
         {
             ObjectDisposedException.ThrowIf(_disposed.Value, this);
             return await RemoveObjectsForModuleCore(modulePath, cancellationToken);
-        }
-        finally
-        {
-            _gate.Release();
         }
     }
 
@@ -169,9 +152,7 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
 
         ArgumentException.ThrowIfNullOrWhiteSpace(modulePath);
 
-        await _gate.WaitAsync(cancellationToken);
-
-        try
+        using (await _gate.Lock(cancellationToken))
         {
             ObjectDisposedException.ThrowIf(_disposed.Value, this);
             var objectsRemoved = false;
@@ -201,10 +182,6 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
                 ExceptionDispatchInfo.Capture(objectRemovalException).Throw();
 
             return objectsRemoved || moduleRemoved;
-        }
-        finally
-        {
-            _gate.Release();
         }
     }
 
@@ -238,15 +215,11 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
         if (!_disposed.TrySetTrue())
             return;
 
-        await _gate.WaitAsync();
-
-        try
+        using (await _gate.Lock())
         {
             await _objects.DisposeAsync();
         }
-        finally
-        {
-            _gate.Release();
-        }
+
+        await _gate.DisposeAsync();
     }
 }
