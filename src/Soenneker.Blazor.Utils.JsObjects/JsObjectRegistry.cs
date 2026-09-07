@@ -58,11 +58,21 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static string CreateKey(string modulePath, string exportName)
     {
-        return string.Concat(modulePath.Length.ToString(CultureInfo.InvariantCulture), ":", modulePath, exportName);
+        return string.Create(CultureInfo.InvariantCulture, $"{modulePath.Length}:{modulePath}{exportName}");
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static (string modulePath, string exportName) ParseKey(string key)
+    {
+        (int moduleStart, int moduleLength) = ParseKeyRange(key);
+
+        string modulePath = key.Substring(moduleStart, moduleLength);
+        string exportName = key[(moduleStart + moduleLength)..];
+
+        return (modulePath, exportName);
+    }
+
+    private static (int moduleStart, int moduleLength) ParseKeyRange(string key)
     {
         int separatorIndex = key.IndexOf(':');
 
@@ -74,10 +84,7 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
         if (moduleLength < 0 || moduleStart + moduleLength > key.Length)
             throw new InvalidOperationException("The JavaScript object cache contains an invalid key.");
 
-        string modulePath = key.Substring(moduleStart, moduleLength);
-        string exportName = key[(moduleStart + moduleLength)..];
-
-        return (modulePath, exportName);
+        return (moduleStart, moduleLength);
     }
 
     public async ValueTask<bool> RemoveObject(string modulePath, string exportName)
@@ -188,8 +195,8 @@ public sealed class JsObjectRegistry : IJsObjectRegistry
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool KeyMatchesModule(string key, string modulePath)
     {
-        (string cachedModulePath, _) = ParseKey(key);
-        return cachedModulePath.Equals(modulePath, StringComparison.Ordinal);
+        (int moduleStart, int moduleLength) = ParseKeyRange(key);
+        return key.AsSpan(moduleStart, moduleLength).SequenceEqual(modulePath);
     }
 
     private static async ValueTask DisposeReference(IJSObjectReference jsObject)
