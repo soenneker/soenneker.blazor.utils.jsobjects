@@ -8,6 +8,11 @@ namespace Soenneker.Blazor.Utils.JsObjects.Abstract;
 /// <summary>
 /// Centralized registry for loading, caching, and reusing JavaScript object instances via Blazor interop.
 /// </summary>
+/// <remarks>
+/// Creation and removal are coordinated per exact module path; unrelated module paths can initialize concurrently.
+/// Use one consistent spelling for each module path, including when removing it.
+/// References are owned by the registry. Callers must coordinate removal with all users of the returned objects.
+/// </remarks>
 public interface IJsObjectRegistry : IAsyncDisposable
 {
     /// <summary>
