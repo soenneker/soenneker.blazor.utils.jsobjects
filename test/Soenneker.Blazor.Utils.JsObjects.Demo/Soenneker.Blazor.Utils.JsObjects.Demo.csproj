@@ -20,7 +20,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Soenneker.Quark.Suite" Version="4.0.1498" />
-        <PackageReference Include="Soenneker.Serilog.Sinks.Browser.Blazor" Version="4.0.413" />
+        <PackageReference Include="Soenneker.Serilog.Sinks.Browser.Blazor" Version="4.0.414" />
     </ItemGroup>
 
     <ItemGroup>
