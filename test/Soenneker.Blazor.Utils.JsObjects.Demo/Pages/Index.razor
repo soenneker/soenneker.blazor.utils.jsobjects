@@ -263,52 +263,94 @@
 
     private async Task RefreshInstanceIdAsync(IJSObjectReference jsObject)
     {
-        _currentInstanceId = await jsObject.InvokeAsync<int>("getInstanceId");
+        try
+        {
+            _currentInstanceId = await jsObject.InvokeAsync<int>("getInstanceId");
+        }
+        catch (JSException exception)
+        {
+            throw new JSException($"JavaScript demo operation 'getCachedObject.RefreshInstanceIdAsync' failed: {exception.Message}", exception);
+        }
     }
 
     private async Task LoadSnapshotAsync()
     {
-        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
-        DemoSnapshot? snapshot = await jsObject.InvokeAsync<DemoSnapshot>("getSnapshot");
+        try
+        {
+            IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+            DemoSnapshot? snapshot = await jsObject.InvokeAsync<DemoSnapshot>("getSnapshot");
 
-        _snapshotJson = JsonSerializer.Serialize(snapshot, _jsonOptions);
-        _status = $"Loaded snapshot for '{_selectedExport}' from JS object {_currentInstanceId}.";
+            _snapshotJson = JsonSerializer.Serialize(snapshot, _jsonOptions);
+            _status = $"Loaded snapshot for '{_selectedExport}' from JS object {_currentInstanceId}.";
+        }
+        catch (JSException exception)
+        {
+            throw new JSException($"JavaScript demo operation 'getCachedObject.LoadSnapshotAsync' failed: {exception.Message}", exception);
+        }
     }
 
     private async Task IncrementCounterAsync()
     {
-        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
-        int nextValue = await jsObject.InvokeAsync<int>("increment", _counterStep);
+        try
+        {
+            IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+            int nextValue = await jsObject.InvokeAsync<int>("increment", _counterStep);
 
-        _status = $"Counter {_currentInstanceId} incremented to {nextValue}.";
-        await LoadSnapshotAsync();
+            _status = $"Counter {_currentInstanceId} incremented to {nextValue}.";
+            await LoadSnapshotAsync();
+        }
+        catch (JSException exception)
+        {
+            throw new JSException($"JavaScript demo operation 'getCachedObject.IncrementCounterAsync' failed: {exception.Message}", exception);
+        }
     }
 
     private async Task ResetCounterAsync()
     {
-        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
-        await jsObject.InvokeVoidAsync("reset");
+        try
+        {
+            IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+            await jsObject.InvokeVoidAsync("reset");
 
-        _status = $"Counter {_currentInstanceId} reset.";
-        await LoadSnapshotAsync();
+            _status = $"Counter {_currentInstanceId} reset.";
+            await LoadSnapshotAsync();
+        }
+        catch (JSException exception)
+        {
+            throw new JSException($"JavaScript demo operation 'getCachedObject.ResetCounterAsync' failed: {exception.Message}", exception);
+        }
     }
 
     private async Task SetProfileNameAsync()
     {
-        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
-        string nextName = await jsObject.InvokeAsync<string>("setName", _profileName);
+        try
+        {
+            IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+            string nextName = await jsObject.InvokeAsync<string>("setName", _profileName);
 
-        _status = $"Profile {_currentInstanceId} name set to '{nextName}'.";
-        await LoadSnapshotAsync();
+            _status = $"Profile {_currentInstanceId} name set to '{nextName}'.";
+            await LoadSnapshotAsync();
+        }
+        catch (JSException exception)
+        {
+            throw new JSException($"JavaScript demo operation 'getCachedObject.SetProfileNameAsync' failed: {exception.Message}", exception);
+        }
     }
 
     private async Task AddProfileTagAsync()
     {
-        IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
-        int tagCount = await jsObject.InvokeAsync<int>("addTag", _profileTag);
+        try
+        {
+            IJSObjectReference jsObject = await EnsureSelectedObjectAsync();
+            int tagCount = await jsObject.InvokeAsync<int>("addTag", _profileTag);
 
-        _status = $"Profile {_currentInstanceId} now has {tagCount} tag(s).";
-        await LoadSnapshotAsync();
+            _status = $"Profile {_currentInstanceId} now has {tagCount} tag(s).";
+            await LoadSnapshotAsync();
+        }
+        catch (JSException exception)
+        {
+            throw new JSException($"JavaScript demo operation 'getCachedObject.AddProfileTagAsync' failed: {exception.Message}", exception);
+        }
     }
 
     private async Task RemoveSelectedObjectAsync()
